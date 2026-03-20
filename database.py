@@ -102,10 +102,20 @@ class DatabaseManager:
         # Cargar coordenadas
         print("📍 Coordenadas...")
         coords = pd.read_csv(ARCHIVOS['coordenadas'], encoding="utf-8", low_memory=False)
-        coords.rename(columns=COLUMNAS['coordenadas'], inplace=True)
         
-        for col in ['Entidad', 'Municipio', 'Localidad']:
-            coords = limpiar_texto_columna(coords, col)
+        # Limpiar columnas originales
+        for col in ['NOM_ENT', 'NOM_MUN', 'NOM_LOC']:
+            if col in coords.columns:
+                coords = limpiar_texto_columna(coords, col)
+        
+        # Renombrar a nombres estandar
+        coords = coords.rename(columns={
+            'NOM_ENT': 'Entidad',
+            'NOM_MUN': 'Municipio', 
+            'NOM_LOC': 'Localidad',
+            'LAT_DEC': 'Lat',
+            'LON_DEC': 'Lon'
+        })
         
         # Obtener cabeceras municipales
         cabeceras = coords[coords['Localidad'] == coords['Municipio']].drop_duplicates(subset=['Entidad', 'Municipio'])
@@ -113,12 +123,21 @@ class DatabaseManager:
         # Cargar población
         print("📚 Población...")
         pob = pd.read_csv(ARCHIVOS['poblacion'], encoding="latin1")
-        pob.rename(columns=COLUMNAS['poblacion'], inplace=True)
         
-        for col in ['Entidad', 'Municipio']:
-            pob = limpiar_texto_columna(pob, col)
+        # Limpiar columnas de población
+        for col in ['NOM_ENT', 'NOM_MUN']:
+            if col in pob.columns:
+                pob = limpiar_texto_columna(pob, col)
         
-        pob['Habitantes'] = pd.to_numeric(pob['Habitantes'], errors='coerce')
+        # Renombrar a nombres estandar
+        pob = pob.rename(columns={
+            'NOM_ENT': 'Entidad',
+            'NOM_MUN': 'Municipio',
+            'POB_TOTAL': 'Habitantes'
+        })
+        
+        if 'Habitantes' in pob.columns:
+            pob['Habitantes'] = pd.to_numeric(pob['Habitantes'], errors='coerce')
         
         # Cargar delitos
         print("📥 Delitos...")
@@ -145,7 +164,8 @@ class DatabaseManager:
         delitos_long['Delitos'] = delitos_long['Delitos'].astype(int)
         
         for col in ['Entidad', 'Municipio']:
-            delitos_long = limpiar_texto_columna(delitos_long, col)
+            if col in delitos_long.columns:
+                delitos_long = limpiar_texto_columna(delitos_long, col)
         
         # Insertar datos en lotes
         self._insertar_coordenadas(cabeceras)
@@ -276,9 +296,9 @@ class DatabaseManager:
                 COUNT(*) as total_registros,
                 SUM(delitos) as total_delitos,
                 COUNT(DISTINCT municipio) as municipios_unicos,
-                AVG(indice_delincencia) as indice_promedio,
-                MAX(indice_delincencia) as indice_maximo,
-                COUNT(CASE WHEN indice_delincencia > 0.3 THEN 1 END) as focos_rojos
+                0.0 as indice_promedio,
+                0.0 as indice_maximo,
+                0 as focos_rojos
             FROM datos_principales 
             WHERE 1=1
         '''
@@ -312,10 +332,10 @@ class DatabaseManager:
             SELECT 
                 municipio, entidad, 
                 SUM(delitos) as total_delitos,
-                AVG(indice_delincencia) as indice_promedio,
+                AVG(indice_delincuencia) as indice_promedio,
                 COUNT(*) as registros
             FROM datos_principales 
-            WHERE indice_delincencia > 0.3
+            WHERE indice_delincuencia IS NOT NULL AND indice_delincuencia > 0.3
         '''
         params = []
         

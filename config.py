@@ -12,16 +12,16 @@ ARCHIVOS = {
 # Columnas de los archivos CSV
 COLUMNAS = {
     'coordenadas': {
-        'Entidad': 'ENTIDAD',
-        'Municipio': 'MUNICIPIO',
-        'Localidad': 'LOCALIDAD',
-        'Lat': 'LATITUD',
-        'Lon': 'LONGITUD'
+        'Entidad': 'NOM_ENT',
+        'Municipio': 'NOM_MUN', 
+        'Localidad': 'NOM_LOC',
+        'Lat': 'LAT_DEC',
+        'Lon': 'LON_DEC'
     },
     'poblacion': {
-        'Entidad': 'ENTIDAD',
-        'Municipio': 'MUNICIPIO',
-        'Habitantes': 'POBLACION_TOTAL'
+        'Entidad': 'NOM_ENT',
+        'Municipio': 'NOM_MUN',
+        'Habitantes': 'POB_TOTAL'
     }
 }
 

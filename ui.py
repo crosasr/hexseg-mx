@@ -4,6 +4,7 @@ Interfaz de usuario Flet mejorada y moderna para SafeHex MX
 import flet as ft
 import pandas as pd
 import webbrowser
+import os
 from config import MAPA_CONFIG, UI_CONFIG
 from utils import formatear_numero
 from validator import validator, error_handler, sanitizer, performance_monitor
@@ -485,7 +486,7 @@ class ModernSafeHexUI:
                 # Generar el mapa
                 mapa_path = self.map_generator.generar_mapa(datos_mapa)
                 if mapa_path:
-                    self.info_mapa.value = f"✅ Mapa generado con {len(datos_mapa)} municipios. Presiona 'Ver Mapa' para explorar."
+                    self.info_mapa.value = f"✅ Mapa generado con {len(datos_mapa)} municipios. ¡Listo para abrir!"
                     self.info_mapa.color = ft.Colors.GREEN_600
                     logger.info(f"Mapa generado exitosamente: {len(datos_mapa)} municipios")
                 else:
@@ -619,14 +620,16 @@ class ModernSafeHexUI:
                         content=ft.Column([
                             self.crear_tabla_moderna(),
                             ft.Container(
-                                content=ft.Column([
-                                    self.info_mapa,
-                                    boton_ver_mapa
-                                ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
-                                padding=20,
-                                bgcolor=ft.Colors.BLUE_50,
-                                border_radius=12,
-                                margin=ft.margin.only(top=20)
+                                content=ft.Container(
+                                    content=ft.Column([
+                                        self.info_mapa,
+                                        boton_ver_mapa
+                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
+                                    padding=20,
+                                    bgcolor=ft.Colors.BLUE_50,
+                                    border_radius=12,
+                                    margin=ft.margin.only(top=20)
+                                )
                             )
                         ]),
                         expand=2,
@@ -656,11 +659,24 @@ class ModernSafeHexUI:
     def abrir_mapa(self, e):
         """Abre el mapa en el navegador"""
         try:
+            logger.info("🔍 Intentando abrir mapa...")
+            
             if self.map_generator.mapa_existe():
                 mapa_path = self.map_generator.obtener_mapa_actual()
-                webbrowser.open(f"file://{mapa_path}")
-                self.mostrar_exito("Mapa abierto en tu navegador")
+                logger.info(f"📁 Ruta del mapa: {mapa_path}")
+                
+                # Verificar que el archivo exista
+                if os.path.exists(mapa_path):
+                    file_url = f"file://{os.path.abspath(mapa_path)}"
+                    logger.info(f"🌐 Abriendo URL: {file_url}")
+                    webbrowser.open(file_url)
+                    self.mostrar_exito("Mapa abierto en tu navegador")
+                else:
+                    logger.error(f"❌ Archivo de mapa no encontrado: {mapa_path}")
+                    self.mostrar_error("Archivo de mapa no encontrado")
             else:
+                logger.warning("⚠️ No hay mapa generado")
                 self.mostrar_error("Primero aplica los filtros para generar el mapa")
         except Exception as error:
+            logger.error(f"❌ Error abriendo mapa: {str(error)}")
             self.mostrar_error(error_handler.manejar_error_general(error, "abrir mapa"))

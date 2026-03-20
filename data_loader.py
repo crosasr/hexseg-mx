@@ -4,6 +4,7 @@ Data Loader optimizado con SQLite para SafeHex MX
 import pandas as pd
 from database import DatabaseManager
 from config import MAPA_CONFIG
+from logger import logger
 
 
 class OptimizedDataLoader:
@@ -69,14 +70,142 @@ class OptimizedDataLoader:
         if not self.db_inicializada:
             self.cargar_todos_los_datos()
         
-        return self.db.obtener_estadisticas_rapidas(año, estado, municipio, delito)
+        try:
+            # Consulta simple para estadísticas
+            query = '''
+                SELECT 
+                    COUNT(*) as total_registros,
+                    SUM(delitos) as total_delitos,
+                    COUNT(DISTINCT municipio) as municipios_unicos,
+                    0.0 as indice_promedio,
+                    0.0 as indice_maximo,
+                    0 as focos_rojos
+                FROM datos_principales 
+                WHERE 1=1
+            '''
+            params = []
+            
+            if año:
+                query += " AND año = ?"
+                params.append(año)
+            
+            if estado:
+                query += " AND entidad = ?"
+                params.append(estado)
+            
+            if municipio:
+                query += " AND municipio = ?"
+                params.append(municipio)
+            
+            if delito:
+                query += " AND tipo_delito = ?"
+                params.append(delito)
+            
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                result = cursor.fetchone()
+                
+                # Calcular focos rojos por separado
+                stats = dict(result) if result else {}
+                stats['focos_rojos'] = self._contar_focos_rojos(año, estado, municipio, delito)
+                
+                return stats
+        except Exception as e:
+            logger.error(f"Error en estadísticas: {e}")
+            # Retornar valores por defecto
+            return {
+                'total_registros': 0,
+                'total_delitos': 0,
+                'municipios_unicos': 0,
+                'focos_rojos': 0
+            }
+    
+    def _contar_focos_rojos(self, año=None, estado=None, municipio=None, delito=None):
+        """Cuenta focos rojos con índice > 0.3"""
+        try:
+            query = '''
+                SELECT COUNT(*) as focos_rojos
+                FROM (
+                    SELECT municipio, 
+                           (SUM(delitos) * 100.0 / AVG(habitantes)) as indice
+                    FROM datos_principales 
+                    WHERE habitantes > 0
+            '''
+            params = []
+            
+            if año:
+                query += " AND año = ?"
+                params.append(año)
+            
+            if estado:
+                query += " AND entidad = ?"
+                params.append(estado)
+            
+            if municipio:
+                query += " AND municipio = ?"
+                params.append(municipio)
+            
+            if delito:
+                query += " AND tipo_delito = ?"
+                params.append(delito)
+            
+            query += " GROUP BY municipio HAVING indice > 0.3) as focos"
+            
+            with self.db.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(query, params)
+                result = cursor.fetchone()
+                return result[0] if result else 0
+        except Exception as e:
+            logger.error(f"Error contando focos rojos: {e}")
+            return 0
     
     def obtener_top_focos_rojos(self, año=None, estado=None, municipio=None, delito=None, limite=5):
         """Obtiene top focos rojos usando SQL"""
         if not self.db_inicializada:
             self.cargar_todos_los_datos()
         
-        return self.db.obtener_top_focos_rojos(año, estado, municipio, delito, limite)
+        try:
+            # Calcular focos rojos directamente desde los datos
+            query = '''
+                SELECT 
+                    municipio, entidad, 
+                    SUM(delitos) as total_delitos,
+                    AVG(habitantes) as habitantes,
+                    (SUM(delitos) * 100.0 / AVG(habitantes)) as indice_promedio,
+                    COUNT(*) as registros
+                FROM datos_principales 
+                WHERE habitantes > 0
+            '''
+            params = []
+            
+            if año:
+                query += " AND año = ?"
+                params.append(año)
+            
+            if estado:
+                query += " AND entidad = ?"
+                params.append(estado)
+            
+            if municipio:
+                query += " AND municipio = ?"
+                params.append(municipio)
+            
+            if delito:
+                query += " AND tipo_delito = ?"
+                params.append(delito)
+            
+            query += " GROUP BY municipio, entidad HAVING (SUM(delitos) * 100.0 / AVG(habitantes)) > 0.3 ORDER BY indice_promedio DESC LIMIT ?"
+            params.append(limite)
+            
+            with self.db.get_connection() as conn:
+                df = pd.read_sql_query(query, conn, params=params)
+                return df
+        except Exception as e:
+            logger.error(f"Error en top focos: {e}")
+            # Retornar DataFrame vacío
+            return pd.DataFrame()
     
     def obtener_municipios_por_estado(self, estado):
         """Obtiene municipios para un estado específico"""
@@ -97,7 +226,7 @@ class OptimizedDataLoader:
                 AVG(lon) as lon,
                 SUM(delitos) as delitos,
                 AVG(habitantes) as habitantes,
-                AVG(indice_delincuencia) as indice_delincuencia
+                (SUM(delitos) * 100.0 / AVG(habitantes)) as indice_delincuencia
             FROM datos_principales 
             WHERE 1=1
         '''
@@ -121,6 +250,11 @@ class OptimizedDataLoader:
         
         query += " GROUP BY municipio, entidad"
         
-        with self.db.get_connection() as conn:
-            df = pd.read_sql_query(query, conn, params=params)
-            return df
+        try:
+            with self.db.get_connection() as conn:
+                df = pd.read_sql_query(query, conn, params=params)
+                return df
+        except Exception as e:
+            logger.error(f"Error en obtener_datos_para_mapa: {e}")
+            # Retornar DataFrame vacío
+            return pd.DataFrame()
