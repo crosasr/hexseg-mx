@@ -39,4 +39,4 @@ Una herramienta de **Business Intelligence geoespacial** que analiza delitos en 
 
 ```bash
 Python 3.12+
-pip install pandas folium h3 flet
+pip install pandas folium h3 flet# SafeHex MX - jue 19 mar 2026 21:54:22 CST
